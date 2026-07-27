@@ -1,0 +1,92 @@
+name: PineTS Runtime 0.9.29
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/pinets-runtime.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-pinets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Package and verify PineTS 0.9.29
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          OUT="$RUNNER_TEMP/pinets-runtime"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+
+          date -u +%FT%TZ > "$OUT/RUNNER_STARTED_UTC.txt"
+          node --version > "$OUT/NODE_VERSION.txt"
+          npm --version > "$OUT/NPM_VERSION.txt"
+
+          npm pack pinets@0.9.29 --pack-destination "$OUT" \
+            > "$OUT/NPM_PACK_STDOUT.txt" \
+            2> "$OUT/NPM_PACK_STDERR.txt"
+
+          TGZ=$(find "$OUT" -maxdepth 1 -type f -name 'pinets-*.tgz' | head -n 1)
+          test -n "$TGZ"
+
+          mkdir -p "$OUT/extracted"
+          tar -xzf "$TGZ" -C "$OUT/extracted"
+
+          cp "$OUT/extracted/package/dist/pinets.min.cjs" "$OUT/pinets.min.cjs"
+          cp "$OUT/extracted/package/package.json" "$OUT/pinets-package.json"
+
+          node - <<NODE > "$OUT/RUNTIME_SMOKE_TEST.txt"
+          const runtime = require('$OUT/pinets.min.cjs');
+          const pkg = require('$OUT/extracted/package/package.json');
+          if (pkg.version !== '0.9.29') {
+            throw new Error('Unexpected PineTS version: ' + pkg.version);
+          }
+          if (typeof runtime.PineTS !== 'function') {
+            throw new Error('PineTS export missing');
+          }
+          console.log('version=' + pkg.version);
+          console.log('exports=' + Object.keys(runtime).sort().join(','));
+          console.log('smoke_test=PASS');
+          NODE
+
+          printf '0.9.29\n' > "$OUT/PINETS_VERSION.txt"
+          sha256sum "$OUT/pinets.min.cjs" > "$OUT/PINETS_SHA256.txt"
+
+      - name: Publish runtime to artifact branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          OUT="$RUNNER_TEMP/pinets-runtime"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout --orphan pinets-runtime-artifact
+          git rm -rf . >/dev/null 2>&1 || true
+          mkdir -p runtime
+          cp -a "$OUT"/. runtime/
+
+          git add runtime
+          git commit -m "Publish verified PineTS 0.9.29 runtime"
+          git push --force origin HEAD:pinets-runtime-artifact
+
+      - name: Upload artifact backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinets-0.9.29-runtime
+          path: ${{ runner.temp }}/pinets-runtime
+          if-no-files-found: error
+          retention-days: 3
