@@ -1,0 +1,3 @@
+version=0.9.29
+exports=AlpacaProvider,BaseProvider,BinanceProvider,Context,FMPProvider,INDICATOR_PROPS,Indicator,PineRuntimeError,PineTS,Provider,STRATEGY_PROPS,TIMEFRAME_PERIOD_INFO,TIMEFRAME_SECONDS,aggregateCandles,computeNextPeriodStart,computeSessionClose,getAggregationRatio,localTimeToUTC,propsForDeclaration,selectSubTimeframe,splitTickerModifier,stripTickerModifier,withTickerModifier
+smoke_test=PASS
