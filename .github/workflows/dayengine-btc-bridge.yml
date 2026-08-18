@@ -1,0 +1,49 @@
+name: Day Engine BTC Binance Bridge
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/dayengine-btc-bridge.yml"
+      - "pipeline.py"
+      - "requirements.txt"
+      - "trigger.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  btc-stage1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download official Binance USD-M futures and run Stage 1
+        env:
+          SYMBOL: BTCUSDT
+          START: 2021-01-01T00:00:00Z
+          END: 2025-01-01T00:00:00Z
+          OUT: output
+        run: python pipeline.py
+
+      - name: Upload BTC Stage 1 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-dayengine-stage1
+          path: output/
+          if-no-files-found: error
+          retention-days: 30
